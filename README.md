@@ -6,4 +6,4 @@ EC-DFR can be run via the function "mp_kfold(x,y,n_spilt,n_repeat,random_state,n
 For the output of EC-EFR, there are 2 examples in the folder named "results_demo". 
 
 # Data
-The dataset and the corresponding function to load it are in the folder name "data0825".
+The dataset and the corresponding function to load it are in the folder name "data".
