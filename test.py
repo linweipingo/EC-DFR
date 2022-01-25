@@ -5,8 +5,8 @@ from scipy.stats import pearsonr
 
 
 
-y_vals=pickle.load(open("results_demo/y_true_1.pkl","rb"))
-y_preds=pickle.load(open("results_demo/y_pred_1.pkl","rb"))
+y_vals=pickle.load(open("results_example/y_true_2.pkl","rb"))
+y_preds=pickle.load(open("results_example/y_pred_2.pkl","rb"))
 
 mses=[]
 rmses=[]

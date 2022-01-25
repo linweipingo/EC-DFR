@@ -14,10 +14,10 @@ def mp_kfold(x,y,n_spilt=5,n_repeat=3,random_state=0,n_jobs=10):
     # train & test spilt, using k-folds cross-validation
     kf=RepeatedKFold(n_splits=n_spilt,n_repeats=n_repeat,random_state=random_state)
     cv=[(t,v) for (t,v) in kf.split(x)]
-    # distribute tasks for multiple process
-    task_distributions=distribute_tasks(n_spilt*n_repeat,n_jobs)
+    # assign tasks for multiple process
+    assignments=assign_tasks(n_spilt*n_repeat,n_jobs)
     pool=mp.Pool(n_jobs)
-    tasks=[pool.apply_async(kfold_async,args=(x,y,k,task,cv)) for k,task in enumerate(task_distributions)]
+    tasks=[pool.apply_async(kfold_async,args=(x,y,k,task,cv)) for k,task in enumerate(assignments)]
     pool.close()
     pool.join()
     results=[task.get() for task in tasks]
@@ -50,37 +50,37 @@ def mp_kfold(x,y,n_spilt=5,n_repeat=3,random_state=0,n_jobs=10):
 def kfold_async(x,y,k,task,cv):
     begin,end=task[0],task[1]
     print("Process_{}: {}-{} folds".format(k,begin,end-1))
-    mses,rmses,maes,r2s,pearsonrs,y_vals,y_preds={},{},{},{},{},{},{}
+    mses,rmses,maes,r2s,pearsonrs,y_tests,y_preds={},{},{},{},{},{},{}
     for i in range(begin,end):
-        (train_id,val_id)=cv[i]
-        x_train,x_val,y_train,y_val=x[train_id],x[val_id],y[train_id],y[val_id]
+        (train_id,test_id)=cv[i]
+        x_train,x_test,y_train,y_test=x[train_id],x[test_id],y[train_id],y[test_id]
         gc=None
         config=get_config()
         gc=gcForest(config,i)
         gc.fit(x_train,y_train)
-        y_pred=gc.predict(x_val)
-        mses[i]=mean_squared_error(y_val,y_pred)
+        y_pred=gc.predict(x_test)
+        mses[i]=mean_squared_error(y_test,y_pred)
         rmses[i]=np.sqrt(mses[i])
-        maes[i]=mean_absolute_error(y_val,y_pred)
-        r2s[i]=r2_score(y_val,y_pred)
-        pearsonrs[i]=pearsonr(y_val,y_pred)[0]
-        y_vals[i]=y_val
+        maes[i]=mean_absolute_error(y_test,y_pred)
+        r2s[i]=r2_score(y_test,y_pred)
+        pearsonrs[i]=pearsonr(y_test,y_pred)[0]
+        y_tests[i]=y_test
         y_preds[i]=y_pred
         print("======={}=======".format(i))
-    return (mses,rmses,maes,r2s,pearsonrs,y_vals,y_preds)
+    return (mses,rmses,maes,r2s,pearsonrs,y_tests,y_preds)
 
-def distribute_tasks(n_fold,n_jobs):
+def assign_tasks(n_fold,n_jobs):
     task_len=n_fold//n_jobs
     task_left=n_fold%n_jobs
     task_lens=[task_len for i in range(n_jobs)]
     for i in range(task_left):
         task_lens[i]+=1
-    task_distribution=[]
+    assignments=[]
     begin=0
     for i in range(len(task_lens)):
-        task_distribution.append((begin,begin+task_lens[i]))
+        assignments.append((begin,begin+task_lens[i]))
         begin=begin+task_lens[i]
-    return task_distribution
+    return assignments
 
 def get_config():
     config={}
@@ -91,12 +91,10 @@ def get_config():
     for i in range(6):
         config["estimator_configs"].append({"n_fold":5,"type":"GradientBoostingRegressor","n_estimators":200,"random_state":i})
 
-    config["train_evaluation"]=MSE
+    config["train_evaluation"]=R2
     config["early_stop_rounds"]=1
     config["random_state"]=0
-    config["max_layers"]=2
-    config["if_stacking"]=False
-    config["if_save_model"]=False
+    config["max_layers"]=3
     return config
 
 from data0825.load_data import load_data
@@ -104,7 +102,7 @@ data=load_data()
 print(data.shape)
 x=data[:,0:-1]
 y=data[:,-1]
-mses,rmses,maes,r2s,pearsonrs,y_vals,y_preds=mp_kfold(x,y,n_repeat=1,n_jobs=5,random_state=0)
+mses,rmses,maes,r2s,pearsonrs,y_tests,y_preds=mp_kfold(x,y,n_repeat=1,n_jobs=5,random_state=0)
 
 
 print("MSE mean={:.4f}, std={:.4f}".format(np.mean(mses),np.std(mses)))

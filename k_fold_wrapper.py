@@ -1,11 +1,14 @@
+import imp
 from sklearn.ensemble import RandomForestRegressor,ExtraTreesRegressor,GradientBoostingRegressor
 from sklearn.linear_model import BayesianRidge
 from sklearn.tree import DecisionTreeRegressor
 import numpy as np
 from sklearn.model_selection import KFold,RepeatedKFold
 from sklearn.metrics import mean_squared_error,r2_score
+from function import adjust_sample
+from lightgbm import LGBMRegressor
 from xgboost import XGBRegressor
-from logger import get_logger
+
 
 
 
@@ -17,7 +20,6 @@ class KFoldWapper(object):
             self.random_state=(random_state+hash(self.name))%1000000007
         else:
             self.random_state=None
-        # print(self.random_state)
         self.n_fold=self.config["n_fold"]
         self.estimators=[None for i in range(self.config["n_fold"])]
         self.config.pop("n_fold")
@@ -30,14 +32,17 @@ class KFoldWapper(object):
         est_args["random_state"]=self.random_state
         return self.estimator_class(**est_args)
     
-    def fit(self,x,y):
+    def fit(self,x,y,y_valid,error_threshold,resampling_rate):
         kf=RepeatedKFold(n_splits=self.n_fold,n_repeats=1,random_state=self.random_state)
         cv=[(t,v) for (t,v) in kf.split(x)]
         y_train_pred=np.zeros((x.shape[0],))
         for k in range(len(self.estimators)):
             est=self._init_estimator()
             train_id, val_id=cv[k]
-            est.fit(x[train_id],y[train_id])
+            x_train,y_train=x[train_id],y[train_id]
+            if y_valid is not None:
+                x_train,y_train=adjust_sample(x_train,y_train,y_valid[train_id],error_threshold,resampling_rate)
+            est.fit(x_train,y_train)
             y_pred=est.predict(x[val_id])
             y_train_pred[val_id]+=y_pred
             self.estimators[k]=est
